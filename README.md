@@ -1,16 +1,9 @@
-# logbook_app_001
+## Self Reflection
+### Bagaimana prinsip SRP membantu saat menambah fitur History Logger?
 
-A new Flutter project.
+Karena saya sudah terbiasa menerapkan SRP, penambahan fitur History Logger menjadi cukup straightforward. Setiap class sudah memiliki tanggung jawab yang jelas, jadi saya tinggal membuat class baru untuk History Logger tanpa perlu mengubah class yang sudah ada.
 
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Yang saya sukai dari penerapan SRP ini adalah:
+- Saya bisa menambahkan fitur baru tanpa takut merusak fitur yang sudah berjalan
+- Class History Logger bisa di-test secara terpisah
+- Kode tetap rapi dan mudah di-maintain ke depannya

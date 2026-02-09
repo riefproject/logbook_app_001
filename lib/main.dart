@@ -12,9 +12,10 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Counter SRP',
+      debugShowCheckedModeBanner: false,
+      title: 'LogbookApp',
       theme: ThemeData(
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: .fromSeed(seedColor: const Color.fromARGB(255, 0, 174, 255)),
       ),
       home: const CounterView(),
     );

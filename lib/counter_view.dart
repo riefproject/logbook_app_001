@@ -20,14 +20,58 @@ class _CounterViewState extends State<CounterView> {
     setState(_controller.decrement);
   }
 
-  void _onReset() {
+  Future<void> _onReset() async {
+    if(_controller.value == 0) {
+      return;
+    }
+    
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Reset'),
+          content: const Text('Yakin ingin reset counter ke 0?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Reset'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
     setState(_controller.reset);
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Counter sudah di-reset')),
+    );
   }
 
   void _onStepChanged(double value) {
     setState(() {
       _controller.setStep(value.round());
     });
+  }
+
+  Color _getHistoryColor(String historyEntry) {
+    if (historyEntry.toLowerCase().contains('menambahkan')) {
+      return Colors.green;
+    } else if (historyEntry.toLowerCase().contains('mengurangi')) {
+      return Colors.red;
+    }
+    return Colors.grey;
   }
 
   @override
@@ -38,8 +82,7 @@ class _CounterViewState extends State<CounterView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Counter SRP'),
-        
+        title: const Text('LogbookApp'),
       ),
       body: SafeArea(
         child: Padding(
@@ -65,8 +108,8 @@ class _CounterViewState extends State<CounterView> {
               Slider(
                 value: step.toDouble(),
                 min: 1,
-                max: 10,
-                divisions: 9,
+                max: 100,
+                divisions: 99,
                 label: '$step',
                 onChanged: _onStepChanged,
               ),
@@ -103,9 +146,17 @@ class _CounterViewState extends State<CounterView> {
                           return const Divider(height: 1);
                         },
                         itemBuilder: (BuildContext context, int index) {
+                          final color = _getHistoryColor(history[index]);
                           return ListTile(
                             dense: true,
-                            title: Text(history[index]),
+                            title: Text(
+                              history[index],
+                              style: TextStyle(color: color, fontWeight: FontWeight.w500),
+                            ),
+                            // leading: Container(
+                            //   width: 4,
+                            //   color: color,
+                            // ),
                           );
                         },
                       ),
@@ -117,3 +168,4 @@ class _CounterViewState extends State<CounterView> {
     );
   }
 }
+

@@ -9,17 +9,19 @@ class CounterController {
   
   void increment() {
     _counter += _step;
-    _addHistory('User menambah nilai sebesar $_step pada jam');
+    _addHistory('User menambahkan nilai sebesar $_step menjadi $_counter');
   }
 
   void decrement() {
-    if(_counter - _step >= 0) _counter -= _step;
-    _addHistory('User menurangi nilai sebesar $_step pada jam');
+    if(_counter - _step >= 0) {
+        _counter -= _step;
+        _addHistory('User mengurangi nilai sebesar $_step menjadi $_counter');
+      }
   }
 
   void reset() {
     _counter = 0;
-    _addHistory('User mereset nilai ke nol pada jam');
+    _addHistory('User mereset nilai ke nol');
   }
 
   void setStep(int value) {
@@ -33,7 +35,7 @@ class CounterController {
   void _addHistory(String action) {
     final DateTime now = DateTime.now();
     final String time = _formatTime(now);
-    _history.insert(0, '$action ($time)');
+    _history.insert(0, '[$time] $action');
     if (_history.length > 5) {
       _history.removeLast();
     }
