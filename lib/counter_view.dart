@@ -1,45 +1,30 @@
 import 'package:flutter/material.dart';
 import 'counter_controller.dart';
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-  final String title;
-
+class CounterView extends StatefulWidget {
+  const CounterView({super.key});
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<CounterView> createState() => _CounterViewState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
+class _CounterViewState extends State<CounterView> {
   final CounterController _controller = CounterController();
-
-  void _incrementCounter() {
-    setState(() {
-      _controller.incrementCounter();
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ),
+      appBar: AppBar(title: const Text("LogBook: Versi SRP")),
       body: Center(
         child: Column(
-          mainAxisAlignment: .center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '${_controller.counter}',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+            const Text("Total Hitungan:"),
+            Text('${_controller.value}', style: const TextStyle(fontSize: 40)),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
+        onPressed: () => setState(() => _controller.increment()),
         child: const Icon(Icons.add),
       ),
     );
