@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+
 import 'counter_controller.dart';
 
 class CounterView extends StatefulWidget {
   const CounterView({super.key});
+
   @override
   State<CounterView> createState() => _CounterViewState();
 }
@@ -18,6 +20,10 @@ class _CounterViewState extends State<CounterView> {
     setState(_controller.decrement);
   }
 
+  void _onReset() {
+    setState(_controller.reset);
+  }
+
   void _onStepChanged(double value) {
     setState(() {
       _controller.setStep(value.round());
@@ -28,6 +34,7 @@ class _CounterViewState extends State<CounterView> {
   Widget build(BuildContext context) {
     final int counter = _controller.value;
     final int step = _controller.step;
+    final List<String> history = _controller.history;
 
     return Scaffold(
       appBar: AppBar(
@@ -75,7 +82,33 @@ class _CounterViewState extends State<CounterView> {
                     onPressed: _onIncrement,
                     child: const Text('Increment'),
                   ),
+                  OutlinedButton(
+                    onPressed: _onReset,
+                    child: const Text('Reset'),
+                  ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'History',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: history.isEmpty
+                    ? const Center(child: Text('Belum ada history'))
+                    : ListView.separated(
+                        itemCount: history.length,
+                        separatorBuilder: (BuildContext context, int index) {
+                          return const Divider(height: 1);
+                        },
+                        itemBuilder: (BuildContext context, int index) {
+                          return ListTile(
+                            dense: true,
+                            title: Text(history[index]),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
