@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../onboarding/onboarding_view.dart';
 import 'counter_controller.dart';
 
 class CounterView extends StatefulWidget {
-  const CounterView({super.key});
+  final String username;
+
+  const CounterView({super.key, this.username = 'Guest'});
 
   @override
   State<CounterView> createState() => _CounterViewState();
@@ -12,19 +15,35 @@ class CounterView extends StatefulWidget {
 class _CounterViewState extends State<CounterView> {
   final CounterController _controller = CounterController();
 
-  void _onIncrement() {
-    setState(_controller.increment);
+  @override
+  void initState() {
+    super.initState();
+    _loadCounterData();
   }
 
-  void _onDecrement() {
+  Future<void> _loadCounterData() async {
+    await _controller.loadData();
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  Future<void> _onIncrement() async {
+    setState(_controller.increment);
+    await _controller.saveData();
+  }
+
+  Future<void> _onDecrement() async {
     setState(_controller.decrement);
+    await _controller.saveData();
   }
 
   Future<void> _onReset() async {
-    if(_controller.value == 0) {
+    if (_controller.value == 0) {
       return;
     }
-    
+
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -50,19 +69,55 @@ class _CounterViewState extends State<CounterView> {
     }
 
     setState(_controller.reset);
+    await _controller.saveData();
     if (!mounted) {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Counter sudah di-reset')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Counter sudah di-reset')));
   }
 
   void _onStepChanged(double value) {
     setState(() {
       _controller.setStep(value.round());
     });
+    _controller.saveData();
+  }
+
+  Future<void> _onLogout() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Logout'),
+          content: const Text('Yakin ingin logout sekarang?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (BuildContext context) => const OnboardingView(),
+      ),
+      (Route<dynamic> route) => false,
+    );
   }
 
   Color _getHistoryColor(String historyEntry) {
@@ -82,7 +137,14 @@ class _CounterViewState extends State<CounterView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('LogbookApp'),
+        title: Text('LogbookApp - ${widget.username}'),
+        actions: [
+          IconButton(
+            onPressed: _onLogout,
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
+          ),
+        ],
       ),
       body: SafeArea(
         child: Padding(
@@ -132,10 +194,7 @@ class _CounterViewState extends State<CounterView> {
                 ],
               ),
               const SizedBox(height: 16),
-              Text(
-                'History',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('History', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
               Expanded(
                 child: history.isEmpty
@@ -151,7 +210,10 @@ class _CounterViewState extends State<CounterView> {
                             dense: true,
                             title: Text(
                               history[index],
-                              style: TextStyle(color: color, fontWeight: FontWeight.w500),
+                              style: TextStyle(
+                                color: color,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                             // leading: Container(
                             //   width: 4,
@@ -168,4 +230,3 @@ class _CounterViewState extends State<CounterView> {
     );
   }
 }
-
