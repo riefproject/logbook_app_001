@@ -11,6 +11,7 @@ class OnboardingView extends StatefulWidget {
 
 class _OnboardingViewState extends State<OnboardingView> {
   int step = 1;
+  static const int _totalSteps = 3;
 
   final List<IconData> _icons = [Icons.edit_note, Icons.history, Icons.lock];
 
@@ -28,7 +29,7 @@ class _OnboardingViewState extends State<OnboardingView> {
 
   void _onNext() {
     final int nextStep = step + 1;
-    if (nextStep > 3) {
+    if (nextStep > _totalSteps) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (BuildContext context) => const LoginView()),
@@ -53,7 +54,7 @@ class _OnboardingViewState extends State<OnboardingView> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Onboarding $step/3',
+                'Onboarding $step/$_totalSteps',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 24),
@@ -82,12 +83,31 @@ class _OnboardingViewState extends State<OnboardingView> {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(_totalSteps, (int dotIndex) {
+                  final bool isActive = step == dotIndex + 1;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: isActive ? 10 : 8,
+                    height: isActive ? 10 : 8,
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? Colors.blue.shade700
+                          : Colors.blue.shade200,
+                      shape: BoxShape.circle,
+                    ),
+                  );
+                }),
+              ),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: _onNext,
-                  child: Text(step == 3 ? 'Mulai Login' : 'Next'),
+                  child: Text(step == _totalSteps ? 'Mulai Login' : 'Next'),
                 ),
               ),
             ],

@@ -6,18 +6,20 @@ import 'counter_controller.dart';
 class CounterView extends StatefulWidget {
   final String username;
 
-  const CounterView({super.key, this.username = 'Guest'});
+  const CounterView({super.key, required this.username});
 
   @override
   State<CounterView> createState() => _CounterViewState();
 }
 
 class _CounterViewState extends State<CounterView> {
-  final CounterController _controller = CounterController();
+  late final CounterController _controller;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _controller = CounterController(storageKeyPrefix: widget.username);
     _loadCounterData();
   }
 
@@ -26,7 +28,9 @@ class _CounterViewState extends State<CounterView> {
     if (!mounted) {
       return;
     }
-    setState(() {});
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   Future<void> _onIncrement() async {
@@ -129,11 +133,37 @@ class _CounterViewState extends State<CounterView> {
     return Colors.grey;
   }
 
+  String _getGreetingWib() {
+    final DateTime wibTime = DateTime.now().toUtc().add(
+      const Duration(hours: 7),
+    );
+    final int hour = wibTime.hour;
+
+    if (hour >= 5 && hour < 11) {
+      return 'Selamat Pagi';
+    }
+    if (hour >= 11 && hour < 15) {
+      return 'Selamat Siang';
+    }
+    if (hour >= 15 && hour < 18) {
+      return 'Selamat Sore';
+    }
+    return 'Selamat Malam';
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text('LogbookApp - ${widget.username}')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final int counter = _controller.value;
     final int step = _controller.step;
     final List<String> history = _controller.history;
+    final String greeting = _getGreetingWib();
 
     return Scaffold(
       appBar: AppBar(
@@ -152,6 +182,12 @@ class _CounterViewState extends State<CounterView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Text(
+                '$greeting, ${widget.username}',
+                style: Theme.of(context).textTheme.titleLarge,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
               Text(
                 'Nilai Counter',
                 style: Theme.of(context).textTheme.titleMedium,
