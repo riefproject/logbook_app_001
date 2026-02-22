@@ -19,6 +19,7 @@ class _LogViewState extends State<LogView> {
 
   @override
   void dispose() {
+    _controller.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -50,7 +51,11 @@ class _LogViewState extends State<LogView> {
     final bool isEdit = index != null;
 
     if (isEdit) {
-      final LogModel log = _controller.logs[index];
+      final LogModel? log = _controller.getLogAt(index);
+      if (log == null) {
+        _showMessage('Data catatan tidak ditemukan');
+        return;
+      }
       _titleController.text = log.title;
       _descriptionController.text = log.description;
     } else {
@@ -95,18 +100,16 @@ class _LogViewState extends State<LogView> {
                 final String title = _titleController.text.trim();
                 final String description = _descriptionController.text.trim();
 
-                if (title.isEmpty || description.isEmpty) {
+                if (!_controller.isValidInput(title, description)) {
                   _showMessage('Judul dan deskripsi wajib diisi');
                   return;
                 }
 
-                setState(() {
-                  if (isEdit) {
-                    _controller.updateLog(index, title, description);
-                  } else {
-                    _controller.addLog(title, description);
-                  }
-                });
+                if (isEdit) {
+                  _controller.updateLog(index, title, description);
+                } else {
+                  _controller.addLog(title, description);
+                }
 
                 Navigator.pop(dialogContext);
                 _showMessage(
@@ -124,63 +127,66 @@ class _LogViewState extends State<LogView> {
   }
 
   void _removeLog(int index) {
-    setState(() {
-      _controller.removeLog(index);
-    });
+    _controller.removeLog(index);
     _showMessage('Catatan berhasil dihapus');
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<LogModel> logs = _controller.logs;
-
     return Scaffold(
       appBar: AppBar(title: Text('Logbook - ${widget.username}')),
       body: SafeArea(
-        child: logs.isEmpty
-            ? const Center(child: Text('Belum ada catatan.'))
-            : ListView.builder(
-                padding: const EdgeInsets.all(12),
-                itemCount: logs.length,
-                itemBuilder: (BuildContext context, int index) {
-                  final LogModel log = logs[index];
+        child: ValueListenableBuilder<List<LogModel>>(
+          valueListenable: _controller.logsNotifier,
+          builder: (BuildContext context, List<LogModel> logs, Widget? child) {
+            if (logs.isEmpty) {
+              return const Center(child: Text('Belum ada catatan.'));
+            }
 
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      title: Text(log.title),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 6),
-                          Text(log.description),
-                          const SizedBox(height: 6),
-                          Text(
-                            _formatTimestamp(log.timestamp),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: () => _showLogDialog(index: index),
-                            icon: const Icon(Icons.edit),
-                            tooltip: 'Edit',
-                          ),
-                          IconButton(
-                            onPressed: () => _removeLog(index),
-                            icon: const Icon(Icons.delete),
-                            tooltip: 'Hapus',
-                            color: Colors.red,
-                          ),
-                        ],
-                      ),
+            return ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: logs.length,
+              itemBuilder: (BuildContext context, int index) {
+                final LogModel log = logs[index];
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: ListTile(
+                    title: Text(log.title),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 6),
+                        Text(log.description),
+                        const SizedBox(height: 6),
+                        Text(
+                          _formatTimestamp(log.timestamp),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
-                  );
-                },
-              ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          onPressed: () => _showLogDialog(index: index),
+                          icon: const Icon(Icons.edit),
+                          tooltip: 'Edit',
+                        ),
+                        IconButton(
+                          onPressed: () => _removeLog(index),
+                          icon: const Icon(Icons.delete),
+                          tooltip: 'Hapus',
+                          color: Colors.red,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showLogDialog(),
