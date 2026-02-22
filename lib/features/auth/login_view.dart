@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../logbook/counter_view.dart';
+import '../logbook/log_view.dart';
 import 'login_controller.dart';
 
 class LoginView extends StatefulWidget {
@@ -89,7 +89,7 @@ class _LoginViewState extends State<LoginView> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (BuildContext context) => CounterView(username: username),
+        builder: (BuildContext context) => LogView(username: username),
       ),
     );
   }
