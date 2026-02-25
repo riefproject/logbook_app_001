@@ -8,6 +8,7 @@ import 'models/log_model.dart';
 
 class LogController {
   LogController() {
+    _applyFilter();
     unawaited(loadFromDisk());
   }
 
@@ -15,6 +16,9 @@ class LogController {
 
   final ValueNotifier<List<LogModel>> logsNotifier =
       ValueNotifier<List<LogModel>>(<LogModel>[]);
+  final ValueNotifier<List<LogModel>> filteredLogs =
+      ValueNotifier<List<LogModel>>(<LogModel>[]);
+  String _searchQuery = '';
 
   List<LogModel> get logs => List<LogModel>.unmodifiable(logsNotifier.value);
 
@@ -26,11 +30,20 @@ class LogController {
     return currentLogs[index];
   }
 
+  int indexOfLog(LogModel log) {
+    return logsNotifier.value.indexOf(log);
+  }
+
   bool isValidInput(String title, String desc) {
     return title.trim().isNotEmpty && desc.trim().isNotEmpty;
   }
 
-  void addLog(String title, String desc) {
+  void searchLog(String query) {
+    _searchQuery = query.trim().toLowerCase();
+    _applyFilter();
+  }
+
+  void addLog(String title, String desc, String category) {
     final List<LogModel> updatedLogs = List<LogModel>.from(logsNotifier.value);
     updatedLogs.insert(
       0,
@@ -38,13 +51,15 @@ class LogController {
         title: title.trim(),
         description: desc.trim(),
         timestamp: DateTime.now().toIso8601String(),
+        category: category.trim().isEmpty ? 'Pribadi' : category.trim(),
       ),
     );
     logsNotifier.value = updatedLogs;
+    _applyFilter();
     unawaited(saveToDisk());
   }
 
-  void updateLog(int index, String title, String desc) {
+  void updateLog(int index, String title, String desc, String category) {
     final List<LogModel> updatedLogs = List<LogModel>.from(logsNotifier.value);
     if (index < 0 || index >= updatedLogs.length) {
       return;
@@ -54,8 +69,10 @@ class LogController {
       title: title.trim(),
       description: desc.trim(),
       timestamp: DateTime.now().toIso8601String(),
+      category: category.trim().isEmpty ? 'Pribadi' : category.trim(),
     );
     logsNotifier.value = updatedLogs;
+    _applyFilter();
     unawaited(saveToDisk());
   }
 
@@ -66,7 +83,26 @@ class LogController {
     }
     updatedLogs.removeAt(index);
     logsNotifier.value = updatedLogs;
+    _applyFilter();
     unawaited(saveToDisk());
+  }
+
+  void _applyFilter() {
+    final List<LogModel> source = logsNotifier.value;
+    if (_searchQuery.isEmpty) {
+      filteredLogs.value = List<LogModel>.from(source);
+      return;
+    }
+
+    filteredLogs.value = source.where((LogModel log) {
+      final String title = log.title.toLowerCase();
+      final String description = log.description.toLowerCase();
+      final String category = log.category.toLowerCase();
+
+      return title.contains(_searchQuery) ||
+          description.contains(_searchQuery) ||
+          category.contains(_searchQuery);
+    }).toList();
   }
 
   Future<void> saveToDisk() async {
@@ -81,12 +117,14 @@ class LogController {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? rawLogs = prefs.getString(_storageKey);
     if (rawLogs == null || rawLogs.isEmpty) {
+      _applyFilter();
       return;
     }
 
     try {
       final dynamic decoded = jsonDecode(rawLogs);
       if (decoded is! List) {
+        _applyFilter();
         return;
       }
 
@@ -101,14 +139,16 @@ class LogController {
         }
       }
       logsNotifier.value = restoredLogs;
+      _applyFilter();
     } on FormatException {
-      // komen biar ga warning
+      _applyFilter();
     } on TypeError {
-      // komen biar ga warning
+      _applyFilter();
     }
   }
 
   void dispose() {
+    filteredLogs.dispose();
     logsNotifier.dispose();
   }
 }
