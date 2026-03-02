@@ -48,3 +48,4 @@ lib/*.txt
 lib/*.md
 
 node_modules/
+.env
