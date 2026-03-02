@@ -46,3 +46,5 @@ app.*.map.json
 
 lib/*.txt
 lib/*.md
+
+node_modules/
