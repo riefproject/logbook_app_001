@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../services/access_control_service.dart';
+import '../onboarding/onboarding_view.dart';
+import 'log_controller.dart';
+import 'log_editor_page.dart';
 import 'models/log_model.dart';
-import '../../services/mongo_service.dart';
 
 class LogView extends StatefulWidget {
   const LogView({super.key, required this.username});
@@ -14,11 +17,6 @@ class LogView extends StatefulWidget {
 }
 
 class _LogViewState extends State<LogView> {
-  static const List<String> _categories = <String>[
-    'Akademik',
-    'Proyek',
-    'Pribadi',
-  ];
   static const List<String> _indonesianMonthNames = <String>[
     'Jan',
     'Feb',
@@ -34,24 +32,35 @@ class _LogViewState extends State<LogView> {
     'Des',
   ];
 
-  final MongoService _mongoService = MongoService();
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
+  final LogController _controller = LogController();
   final TextEditingController _searchController = TextEditingController();
-  Future<List<LogModel>>? _logsFuture;
+  late final Map<String, dynamic> _currentUser;
 
   @override
   void initState() {
     super.initState();
-    _logsFuture = _mongoService.getLogs();
+    _currentUser = <String, dynamic>{
+      'uid': widget.username,
+      'username': widget.username,
+      'role': _resolveRole(widget.username),
+      'teamId': 'unknown',
+    };
+    _controller.loadFromDisk();
   }
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
     _searchController.dispose();
+    _controller.dispose();
     super.dispose();
+  }
+
+  String _resolveRole(String username) {
+    final String normalized = username.trim().toLowerCase();
+    if (normalized == 'admin' || normalized == 'ketua') {
+      return 'Ketua';
+    }
+    return 'Anggota';
   }
 
   void _showMessage(String message) {
@@ -116,52 +125,33 @@ class _LogViewState extends State<LogView> {
     }
   }
 
-  Future<void> _refreshLogs() async {
-    setState(() {
-      _logsFuture = _mongoService.getLogs();
-    });
-
-    try {
-      await _logsFuture;
-    } catch (_) {
-      // Error state is rendered by FutureBuilder via snapshot.hasError.
-    }
+  Future<void> _openEditor({LogModel? log, int? index}) async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) {
+          return LogEditorPage(
+            log: log,
+            index: index,
+            controller: _controller,
+            currentUser: _currentUser,
+          );
+        },
+      ),
+    );
   }
 
-  Widget _buildConnectionErrorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, size: 72, color: Colors.blueGrey),
-            const SizedBox(height: 12),
-            Text(
-              'Tidak dapat terhubung ke server',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Periksa koneksi internet Anda',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: Colors.blueGrey.shade600),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: () {
-                _refreshLogs();
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Coba Lagi'),
-            ),
-          ],
-        ),
+  Future<void> _refreshLogs() async {
+    _controller.loadFromDisk();
+  }
+
+  void _logout() {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute<OnboardingView>(
+        builder: (BuildContext context) => const OnboardingView(),
       ),
+      (Route<dynamic> route) => false,
     );
   }
 
@@ -187,7 +177,7 @@ class _LogViewState extends State<LogView> {
             Text(
               isSearching
                   ? 'Coba kata kunci lain atau kosongkan pencarian.'
-                  : 'Tambahkan log pertamamu untuk mulai menyimpan data cloud.',
+                  : 'Tambahkan log pertamamu untuk mulai menyimpan data.',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: Colors.blueGrey.shade600),
@@ -196,7 +186,9 @@ class _LogViewState extends State<LogView> {
             if (!isSearching) ...<Widget>[
               const SizedBox(height: 18),
               ElevatedButton.icon(
-                onPressed: _showLogDialog,
+                onPressed: () {
+                  _openEditor();
+                },
                 icon: const Icon(Icons.add),
                 label: const Text('Tambah Log Pertama'),
               ),
@@ -207,134 +199,21 @@ class _LogViewState extends State<LogView> {
     );
   }
 
-  Future<void> _showLogDialog() async {
-    String selectedCategory = _categories.first;
-    if (!_categories.contains(selectedCategory)) {
-      selectedCategory = _categories.first;
-    }
-
-    _titleController.clear();
-    _descriptionController.clear();
-
-    await showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Tambah Catatan'),
-          content: StatefulBuilder(
-            builder:
-                (
-                  BuildContext context,
-                  void Function(void Function()) setDialogState,
-                ) {
-                  return SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextField(
-                          controller: _titleController,
-                          decoration: const InputDecoration(
-                            labelText: 'Judul',
-                            border: OutlineInputBorder(),
-                          ),
-                          textInputAction: TextInputAction.next,
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _descriptionController,
-                          decoration: const InputDecoration(
-                            labelText: 'Deskripsi',
-                            border: OutlineInputBorder(),
-                          ),
-                          maxLines: 3,
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: selectedCategory,
-                          decoration: const InputDecoration(
-                            labelText: 'Kategori',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: _categories.map((String category) {
-                            return DropdownMenuItem<String>(
-                              value: category,
-                              child: Text(category),
-                            );
-                          }).toList(),
-                          onChanged: (String? value) {
-                            if (value == null) {
-                              return;
-                            }
-                            setDialogState(() {
-                              selectedCategory = value;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  );
-                },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Batal'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final String title = _titleController.text.trim();
-                final String description = _descriptionController.text.trim();
-
-                if (title.isEmpty || description.isEmpty) {
-                  _showMessage('Judul dan deskripsi wajib diisi');
-                  return;
-                }
-
-                try {
-                  await _mongoService.insertLog(
-                    LogModel(
-                      title: title,
-                      description: description,
-                      timestamp: DateTime.now().toIso8601String(),
-                      category: selectedCategory,
-                    ),
-                  );
-                } catch (error) {
-                  if (!mounted || !dialogContext.mounted) {
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop();
-                  _showMessage('Gagal menambah catatan: $error');
-                  return;
-                }
-
-                if (!mounted || !dialogContext.mounted) {
-                  return;
-                }
-                Navigator.of(dialogContext).pop();
-                _refreshLogs();
-                _showMessage('Catatan berhasil ditambah');
-              },
-              child: const Text('Tambah'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final String role = (_currentUser['role'] ?? '').toString();
+    final String userId = (_currentUser['uid'] ?? '').toString();
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Logbook - ${widget.username}'),
         actions: [
           IconButton(
             onPressed: () {
-              _refreshLogs();
+              _logout();
             },
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
+            icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
           ),
         ],
       ),
@@ -345,7 +224,9 @@ class _LogViewState extends State<LogView> {
             children: [
               TextField(
                 controller: _searchController,
-                onChanged: (_) => setState(() {}),
+                onChanged: (String query) {
+                  _controller.searchLog(query);
+                },
                 decoration: InputDecoration(
                   labelText: 'Cari catatan',
                   hintText: 'Cari judul, deskripsi, atau kategori',
@@ -369,44 +250,19 @@ class _LogViewState extends State<LogView> {
               ),
               const SizedBox(height: 12),
               Expanded(
-                child: FutureBuilder<List<LogModel>>(
-                  future: _logsFuture,
+                child: ValueListenableBuilder<List<LogModel>>(
+                  valueListenable: _controller.filteredLogs,
                   builder:
                       (
                         BuildContext context,
-                        AsyncSnapshot<List<LogModel>> snapshot,
+                        List<LogModel> logs,
+                        Widget? child,
                       ) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-
-                        if (snapshot.hasError) {
-                          return _buildConnectionErrorState();
-                        }
-
-                        final List<LogModel> allLogs =
-                            snapshot.data ?? <LogModel>[];
-                        final String query = _searchController.text
-                            .trim()
-                            .toLowerCase();
-                        final List<LogModel> logs = query.isEmpty
-                            ? allLogs
-                            : allLogs.where((LogModel log) {
-                                return log.title.toLowerCase().contains(
-                                      query,
-                                    ) ||
-                                    log.description.toLowerCase().contains(
-                                      query,
-                                    ) ||
-                                    log.category.toLowerCase().contains(query);
-                              }).toList();
-
                         if (logs.isEmpty) {
                           return _buildEmptyState(
-                            isSearching: query.isNotEmpty,
+                            isSearching: _searchController.text
+                                .trim()
+                                .isNotEmpty,
                           );
                         }
 
@@ -418,6 +274,26 @@ class _LogViewState extends State<LogView> {
                             padding: const EdgeInsets.only(bottom: 12),
                             itemBuilder: (BuildContext context, int index) {
                               final LogModel log = logs[index];
+                              final int originalIndex = _controller.indexOfLog(
+                                log,
+                              );
+                              if (originalIndex < 0) {
+                                return const SizedBox.shrink();
+                              }
+
+                              final bool isOwner = log.authorId == userId;
+                              final bool canUpdate =
+                                  AccessControlService.canPerform(
+                                    role,
+                                    AccessControlService.update,
+                                    isOwner: isOwner,
+                                  );
+                              final bool canDelete =
+                                  AccessControlService.canPerform(
+                                    role,
+                                    AccessControlService.delete,
+                                    isOwner: isOwner,
+                                  );
                               final Color accentColor = _categoryColor(
                                 log.category,
                               );
@@ -507,6 +383,41 @@ class _LogViewState extends State<LogView> {
                                       ),
                                     ],
                                   ),
+                                  trailing: (canUpdate || canDelete)
+                                      ? Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (canUpdate)
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.edit_outlined,
+                                                ),
+                                                tooltip: 'Edit',
+                                                onPressed: () {
+                                                  _openEditor(
+                                                    log: log,
+                                                    index: originalIndex,
+                                                  );
+                                                },
+                                              ),
+                                            if (canDelete)
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                ),
+                                                tooltip: 'Hapus',
+                                                onPressed: () {
+                                                  _controller.removeLog(
+                                                    originalIndex,
+                                                  );
+                                                  _showMessage(
+                                                    'Catatan berhasil dihapus',
+                                                  );
+                                                },
+                                              ),
+                                          ],
+                                        )
+                                      : null,
                                 ),
                               );
                             },
@@ -519,11 +430,16 @@ class _LogViewState extends State<LogView> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showLogDialog,
-        tooltip: 'Tambah Catatan',
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton:
+          AccessControlService.canPerform(role, AccessControlService.create)
+          ? FloatingActionButton(
+              onPressed: () {
+                _openEditor();
+              },
+              tooltip: 'Tambah Catatan',
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

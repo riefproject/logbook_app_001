@@ -1,8 +1,10 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive/hive.dart';
 
 class CounterController {
   CounterController({String storageKeyPrefix = 'guest'})
     : _storageKeyPrefix = storageKeyPrefix.trim().toLowerCase();
+
+  static const String _boxName = 'counter_storage';
 
   String get username => _storageKeyPrefix;
   int _counter = 0;
@@ -22,7 +24,9 @@ class CounterController {
   void decrement() {
     if (_counter - _step >= 0) {
       _counter -= _step;
-      _addHistory('$username mengurangi nilai sebesar $_step menjadi $_counter');
+      _addHistory(
+        '$username mengurangi nilai sebesar $_step menjadi $_counter',
+      );
     }
   }
 
@@ -56,18 +60,21 @@ class CounterController {
   }
 
   Future<void> saveData() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final Box<dynamic> box = await _openBox();
     await saveLastCounter();
-    await prefs.setInt(_stepKey, _step);
-    await prefs.setStringList(_historyKey, _history);
+    await box.put(_stepKey, _step);
+    await box.put(_historyKey, List<String>.from(_history));
   }
 
   Future<void> loadData() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final Box<dynamic> box = await _openBox();
     await loadLastCounter();
-    _step = prefs.getInt(_stepKey) ?? _step;
+    _step = (box.get(_stepKey) as int?) ?? _step;
 
-    final List<String>? savedHistory = prefs.getStringList(_historyKey);
+    final dynamic rawHistory = box.get(_historyKey);
+    final List<String>? savedHistory = rawHistory is List
+        ? rawHistory.map((dynamic item) => item.toString()).toList()
+        : null;
     if (savedHistory != null) {
       _history
         ..clear()
@@ -76,13 +83,20 @@ class CounterController {
   }
 
   Future<void> saveLastCounter() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_counterKey, _counter);
+    final Box<dynamic> box = await _openBox();
+    await box.put(_counterKey, _counter);
   }
 
   Future<void> loadLastCounter() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    _counter = prefs.getInt(_counterKey) ?? _counter;
+    final Box<dynamic> box = await _openBox();
+    _counter = (box.get(_counterKey) as int?) ?? _counter;
+  }
+
+  Future<Box<dynamic>> _openBox() async {
+    if (Hive.isBoxOpen(_boxName)) {
+      return Hive.box<dynamic>(_boxName);
+    }
+    return Hive.openBox<dynamic>(_boxName);
   }
 
   String get _counterKey => '${_storageKeyPrefix}_counter_value';
