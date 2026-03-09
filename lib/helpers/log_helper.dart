@@ -1,60 +1,93 @@
 import 'dart:developer' as dev;
-import 'package:intl/intl.dart'; // Tetap kita gunakan untuk presisi waktu
+import 'dart:io';
+
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class LogHelper {
   static Future<void> writeLog(
     String message, {
-    String source = "Unknown", // Menandakan file/proses asal
+    String source = 'Unknown',
     int level = 2,
   }) async {
-    // 1. Filter Konfigurasi (ENV)
     final int configLevel = int.tryParse(dotenv.env['LOG_LEVEL'] ?? '2') ?? 2;
-    final String muteList = dotenv.env['LOG_MUTE'] ?? '';
+    final List<String> muteList = (dotenv.env['LOG_MUTE'] ?? '')
+        .split(',')
+        .map((String item) => item.trim())
+        .where((String item) => item.isNotEmpty)
+        .toList();
 
-    if (level > configLevel) return;
-    if (muteList.split(',').contains(source)) return;
+    if (level > configLevel) {
+      return;
+    }
+
+    if (muteList.contains(source)) {
+      return;
+    }
 
     try {
-      // 2. Format Waktu untuk Konsol
-      String timestamp = DateFormat('HH:mm:ss').format(DateTime.now());
-      String label = _getLabel(level);
-      String color = _getColor(level);
+      final DateTime now = DateTime.now();
+      final String label = _getLabel(level);
+      final String timestamp = _formatTime(now);
+      final String fileName = _formatFileName(now);
+      final String line = '[$timestamp][$label][$source] $message';
+      final Directory logsDirectory = Directory('logs');
 
-      // 3. Output ke VS Code Debug Console (Non-blocking)
-      dev.log(message, name: source, time: DateTime.now(), level: level * 100);
+      if (!await logsDirectory.exists()) {
+        await logsDirectory.create(recursive: true);
+      }
 
-      // 4. Output ke Terminal (Agar Bapak bisa lihat di PC saat flutter run)
-      // Format: [14:30:05] [INFO] [log_view.dart] -> Database Terhubung
-      print('$color[$timestamp][$label][$source] -> $message\x1B[0m');
-    } catch (e) {
-      dev.log("Logging failed: $e", name: "SYSTEM", level: 1000);
+      dev.log(message, name: source, time: now, level: _developerLevel(level));
+      // ignore: avoid_print
+      print(line);
+
+      final File logFile = File('${logsDirectory.path}/$fileName');
+      await logFile.writeAsString(
+        '$line\n',
+        mode: FileMode.append,
+        flush: true,
+      );
+    } catch (error) {
+      dev.log('Logging failed: $error', name: 'SYSTEM', level: 1000);
     }
   }
 
   static String _getLabel(int level) {
     switch (level) {
       case 1:
-        return "ERROR";
+        return 'ERROR';
       case 2:
-        return "INFO";
+        return 'INFO';
       case 3:
-        return "VERBOSE";
+        return 'VERBOSE';
       default:
-        return "LOG";
+        return 'LOG';
     }
   }
 
-  static String _getColor(int level) {
+  static String _formatTime(DateTime dateTime) {
+    final String hour = dateTime.hour.toString().padLeft(2, '0');
+    final String minute = dateTime.minute.toString().padLeft(2, '0');
+    final String second = dateTime.second.toString().padLeft(2, '0');
+    return '$hour:$minute:$second';
+  }
+
+  static String _formatFileName(DateTime dateTime) {
+    final String day = dateTime.day.toString().padLeft(2, '0');
+    final String month = dateTime.month.toString().padLeft(2, '0');
+    final String year = dateTime.year.toString();
+    return '$day-$month-$year.log';
+  }
+
+  static int _developerLevel(int level) {
     switch (level) {
       case 1:
-        return '\x1B[31m'; // Merah
+        return 1000;
       case 2:
-        return '\x1B[32m'; // Hijau
+        return 800;
       case 3:
-        return '\x1B[34m'; // Biru
+        return 500;
       default:
-        return '\x1B[0m';
+        return 0;
     }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'models/log_model.dart';
 import '../../services/mongo_service.dart';
@@ -17,6 +18,20 @@ class _LogViewState extends State<LogView> {
     'Akademik',
     'Proyek',
     'Pribadi',
+  ];
+  static const List<String> _indonesianMonthNames = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
   ];
 
   final MongoService _mongoService = MongoService();
@@ -52,13 +67,27 @@ class _LogViewState extends State<LogView> {
     }
 
     final DateTime localTime = parsedTime.toLocal();
-    final String day = localTime.day.toString().padLeft(2, '0');
-    final String month = localTime.month.toString().padLeft(2, '0');
-    final String year = localTime.year.toString();
-    final String hour = localTime.hour.toString().padLeft(2, '0');
-    final String minute = localTime.minute.toString().padLeft(2, '0');
+    final Duration difference = DateTime.now().difference(localTime);
 
-    return '$day/$month/$year $hour:$minute';
+    if (!difference.isNegative) {
+      if (difference.inMinutes < 1) {
+        return 'Baru saja';
+      }
+
+      if (difference.inHours < 1) {
+        return '${difference.inMinutes} menit yang lalu';
+      }
+    }
+
+    try {
+      return DateFormat('d MMM yyyy, HH:mm', 'id_ID').format(localTime);
+    } catch (_) {
+      final String hour = localTime.hour.toString().padLeft(2, '0');
+      final String minute = localTime.minute.toString().padLeft(2, '0');
+      final String month = _indonesianMonthNames[localTime.month - 1];
+
+      return '${localTime.day} $month ${localTime.year}, $hour:$minute';
+    }
   }
 
   Color _categoryColor(String category) {
@@ -87,10 +116,53 @@ class _LogViewState extends State<LogView> {
     }
   }
 
-  void _refresh() {
+  Future<void> _refreshLogs() async {
     setState(() {
       _logsFuture = _mongoService.getLogs();
     });
+
+    try {
+      await _logsFuture;
+    } catch (_) {
+      // Error state is rendered by FutureBuilder via snapshot.hasError.
+    }
+  }
+
+  Widget _buildConnectionErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 72, color: Colors.blueGrey),
+            const SizedBox(height: 12),
+            Text(
+              'Tidak dapat terhubung ke server',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Periksa koneksi internet Anda',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.blueGrey.shade600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                _refreshLogs();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Coba Lagi'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildEmptyState({required bool isSearching}) {
@@ -240,7 +312,7 @@ class _LogViewState extends State<LogView> {
                   return;
                 }
                 Navigator.of(dialogContext).pop();
-                _refresh();
+                _refreshLogs();
                 _showMessage('Catatan berhasil ditambah');
               },
               child: const Text('Tambah'),
@@ -258,7 +330,9 @@ class _LogViewState extends State<LogView> {
         title: Text('Logbook - ${widget.username}'),
         actions: [
           IconButton(
-            onPressed: _refresh,
+            onPressed: () {
+              _refreshLogs();
+            },
             icon: const Icon(Icons.refresh),
             tooltip: 'Refresh',
           ),
@@ -297,157 +371,148 @@ class _LogViewState extends State<LogView> {
               Expanded(
                 child: FutureBuilder<List<LogModel>>(
                   future: _logsFuture,
-                  builder: (
-                    BuildContext context,
-                    AsyncSnapshot<List<LogModel>> snapshot,
-                  ) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+                  builder:
+                      (
+                        BuildContext context,
+                        AsyncSnapshot<List<LogModel>> snapshot,
+                      ) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
 
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.cloud_off_outlined,
-                                size: 72,
-                                color: Colors.redAccent,
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Gagal memuat data cloud',
-                                style: Theme.of(context).textTheme.titleMedium,
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${snapshot.error}',
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed: _refresh,
-                                child: const Text('Coba Lagi'),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
+                        if (snapshot.hasError) {
+                          return _buildConnectionErrorState();
+                        }
 
-                    final List<LogModel> allLogs = snapshot.data ?? <LogModel>[];
-                    final String query = _searchController.text
-                        .trim()
-                        .toLowerCase();
-                    final List<LogModel> logs = query.isEmpty
-                        ? allLogs
-                        : allLogs.where((LogModel log) {
-                            return log.title.toLowerCase().contains(query) ||
-                                log.description.toLowerCase().contains(query) ||
-                                log.category.toLowerCase().contains(query);
-                          }).toList();
+                        final List<LogModel> allLogs =
+                            snapshot.data ?? <LogModel>[];
+                        final String query = _searchController.text
+                            .trim()
+                            .toLowerCase();
+                        final List<LogModel> logs = query.isEmpty
+                            ? allLogs
+                            : allLogs.where((LogModel log) {
+                                return log.title.toLowerCase().contains(
+                                      query,
+                                    ) ||
+                                    log.description.toLowerCase().contains(
+                                      query,
+                                    ) ||
+                                    log.category.toLowerCase().contains(query);
+                              }).toList();
 
-                    if (logs.isEmpty) {
-                      return _buildEmptyState(isSearching: query.isNotEmpty);
-                    }
+                        if (logs.isEmpty) {
+                          return _buildEmptyState(
+                            isSearching: query.isNotEmpty,
+                          );
+                        }
 
-                    return ListView.builder(
-                      itemCount: logs.length,
-                      padding: const EdgeInsets.only(bottom: 12),
-                      itemBuilder: (BuildContext context, int index) {
-                        final LogModel log = logs[index];
-                        final Color accentColor = _categoryColor(log.category);
+                        return RefreshIndicator(
+                          onRefresh: _refreshLogs,
+                          child: ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: logs.length,
+                            padding: const EdgeInsets.only(bottom: 12),
+                            itemBuilder: (BuildContext context, int index) {
+                              final LogModel log = logs[index];
+                              final Color accentColor = _categoryColor(
+                                log.category,
+                              );
 
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(
-                              color: accentColor.withValues(alpha: 0.26),
-                            ),
-                          ),
-                          color: accentColor.withValues(alpha: 0.08),
-                          child: ListTile(
-                            title: Text(
-                              log.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const SizedBox(height: 6),
-                                Text(log.description),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(99),
-                                        color: accentColor.withValues(
-                                          alpha: 0.16,
-                                        ),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 10),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(
+                                    color: accentColor.withValues(alpha: 0.26),
+                                  ),
+                                ),
+                                color: accentColor.withValues(alpha: 0.08),
+                                child: ListTile(
+                                  title: Text(
+                                    log.title,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 6),
+                                      Text(log.description),
+                                      const SizedBox(height: 6),
+                                      Row(
                                         children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(99),
+                                              color: accentColor.withValues(
+                                                alpha: 0.16,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  _categoryIcon(log.category),
+                                                  size: 12,
+                                                  color: accentColor,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  log.category,
+                                                  style: TextStyle(
+                                                    color: accentColor,
+                                                    fontWeight: FontWeight.w600,
+                                                    fontSize: 12,
+                                                    height: 1.1,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
                                           Icon(
-                                            _categoryIcon(log.category),
+                                            Icons.schedule_outlined,
                                             size: 12,
-                                            color: accentColor,
+                                            color: Colors.blueGrey.shade500,
                                           ),
                                           const SizedBox(width: 4),
-                                          Text(
-                                            log.category,
-                                            style: TextStyle(
-                                              color: accentColor,
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 12,
-                                              height: 1.1,
+                                          Expanded(
+                                            child: Text(
+                                              _formatTimestamp(log.timestamp),
+                                              textAlign: TextAlign.left,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: Colors
+                                                        .blueGrey
+                                                        .shade600,
+                                                    fontSize: 11,
+                                                  ),
                                             ),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Icon(
-                                      Icons.schedule_outlined,
-                                      size: 12,
-                                      color: Colors.blueGrey.shade500,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        _formatTimestamp(log.timestamp),
-                                        textAlign: TextAlign.left,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: Colors.blueGrey.shade600,
-                                              fontSize: 11,
-                                            ),
-                                      ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                              ],
-                            ),
+                              );
+                            },
                           ),
                         );
                       },
-                    );
-                  },
                 ),
               ),
             ],

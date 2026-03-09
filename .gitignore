@@ -49,3 +49,4 @@ lib/*.md
 
 node_modules/
 .env
+logs/
