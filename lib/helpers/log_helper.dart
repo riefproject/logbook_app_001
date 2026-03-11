@@ -2,6 +2,7 @@ import 'dart:developer' as dev;
 import 'dart:io';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:path_provider/path_provider.dart';
 
 class LogHelper {
   static Future<void> writeLog(
@@ -30,7 +31,9 @@ class LogHelper {
       final String timestamp = _formatTime(now);
       final String fileName = _formatFileName(now);
       final String line = '[$timestamp][$label][$source] $message';
-      final Directory logsDirectory = Directory('logs');
+
+      final Directory appDocDir = await getApplicationDocumentsDirectory();
+      final Directory logsDirectory = Directory('${appDocDir.path}/logs');
 
       if (!await logsDirectory.exists()) {
         await logsDirectory.create(recursive: true);

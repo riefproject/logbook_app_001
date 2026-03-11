@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lottie/lottie.dart';
 
 import '../../services/access_control_service.dart';
 import '../onboarding/onboarding_view.dart';
@@ -202,10 +203,18 @@ class _LogViewState extends State<LogView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.inbox_outlined,
-              size: 88,
-              color: Colors.blueGrey.shade300,
+            Lottie.asset(
+              'assets/animations/empty.json',
+              height: 120,
+              errorBuilder: (context, error, stackTrace) {
+              //  debugPrint("Lottie Error Detail: $error");
+          
+                return Icon(
+                  Icons.inbox_outlined,
+                  size: 88,
+                  color: Colors.blueGrey.shade300,
+                );
+              },
             ),
             const SizedBox(height: 14),
             Text(
