@@ -71,8 +71,11 @@ class _LoginViewState extends State<LoginView> {
       return;
     }
 
-    final bool isSuccess = _controller.login(username, password);
-    if (!isSuccess) {
+    final Map<String, dynamic>? currentUser = _controller.login(
+      username,
+      password,
+    );
+    if (currentUser == null) {
       setState(() {
         _failedAttempts++;
       });
@@ -89,7 +92,7 @@ class _LoginViewState extends State<LoginView> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (BuildContext context) => LogView(username: username),
+        builder: (BuildContext context) => LogView(currentUser: currentUser),
       ),
     );
   }

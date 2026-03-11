@@ -8,15 +8,16 @@ import 'log_editor_page.dart';
 import 'models/log_model.dart';
 
 class LogView extends StatefulWidget {
-  const LogView({super.key, required this.username});
+  const LogView({super.key, required this.currentUser});
 
-  final String username;
+  final Map<String, dynamic> currentUser;
 
   @override
   State<LogView> createState() => _LogViewState();
 }
 
 class _LogViewState extends State<LogView> {
+  static final RegExp _objectIdPattern = RegExp(r'^[a-fA-F0-9]{24}$');
   static const List<String> _indonesianMonthNames = <String>[
     'Jan',
     'Feb',
@@ -40,12 +41,18 @@ class _LogViewState extends State<LogView> {
   void initState() {
     super.initState();
     _currentUser = <String, dynamic>{
-      'uid': widget.username,
-      'username': widget.username,
-      'role': _resolveRole(widget.username),
-      'teamId': 'unknown',
+      'uid': (widget.currentUser['uid'] ?? 'unknown').toString(),
+      'username': (widget.currentUser['username'] ?? 'guest').toString(),
+      'role': (widget.currentUser['role'] ?? 'Anggota').toString(),
+      'teamId': (widget.currentUser['teamId'] ?? 'unknown').toString(),
     };
-    _controller.loadFromDisk();
+
+    _controller.setSession(
+      userId: _currentUser['uid'].toString(),
+      userRole: _currentUser['role'].toString(),
+      teamId: _currentUser['teamId'].toString(),
+    );
+    _controller.loadLogs(_currentUser['teamId'].toString());
   }
 
   @override
@@ -53,14 +60,6 @@ class _LogViewState extends State<LogView> {
     _searchController.dispose();
     _controller.dispose();
     super.dispose();
-  }
-
-  String _resolveRole(String username) {
-    final String normalized = username.trim().toLowerCase();
-    if (normalized == 'admin' || normalized == 'ketua') {
-      return 'Ketua';
-    }
-    return 'Anggota';
   }
 
   void _showMessage(String message) {
@@ -139,13 +138,42 @@ class _LogViewState extends State<LogView> {
         },
       ),
     );
+
+    if (!mounted) {
+      return;
+    }
+    _controller.loadLogs(_currentUser['teamId'].toString());
   }
 
   Future<void> _refreshLogs() async {
-    _controller.loadFromDisk();
+    _controller.loadLogs(_currentUser['teamId'].toString());
   }
 
-  void _logout() {
+  Future<void> _logout() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Konfirmasi Logout'),
+          content: const Text('Yakin ingin logout sekarang?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute<OnboardingView>(
@@ -153,6 +181,18 @@ class _LogViewState extends State<LogView> {
       ),
       (Route<dynamic> route) => false,
     );
+  }
+
+  bool _hasCloudId(LogModel log) {
+    final String? rawId = log.id?.trim();
+    if (rawId == null || rawId.isEmpty) {
+      return false;
+    }
+    return _objectIdPattern.hasMatch(rawId);
+  }
+
+  bool _isSynced(LogModel log) {
+    return _hasCloudId(log) && !log.needsSync;
   }
 
   Widget _buildEmptyState({required bool isSearching}) {
@@ -201,17 +241,34 @@ class _LogViewState extends State<LogView> {
 
   @override
   Widget build(BuildContext context) {
-    final String role = (_currentUser['role'] ?? '').toString();
-    final String userId = (_currentUser['uid'] ?? '').toString();
+    final String role = _currentUser['role'].toString();
+    final String userId = _currentUser['uid'].toString();
+    final String username = _currentUser['username'].toString();
+    final String teamId = _currentUser['teamId'].toString();
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Logbook - ${widget.username}'),
+        title: Text('Logbook - $username'),
         actions: [
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _controller.isOnlineNotifier,
+                builder: (BuildContext context, bool isOnline, Widget? child) {
+                  return Tooltip(
+                    message: isOnline ? 'Online' : 'Offline',
+                    child: Icon(
+                      isOnline ? Icons.wifi : Icons.wifi_off,
+                      color: isOnline ? Colors.green : Colors.orange,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
           IconButton(
-            onPressed: () {
-              _logout();
-            },
+            onPressed: _logout,
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
           ),
@@ -246,6 +303,16 @@ class _LogViewState extends State<LogView> {
                   filled: true,
                   fillColor: Colors.blueGrey.shade50,
                   prefixIcon: const Icon(Icons.search),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Role: $role • Team: $teamId',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.blueGrey),
                 ),
               ),
               const SizedBox(height: 12),
@@ -285,13 +352,13 @@ class _LogViewState extends State<LogView> {
                               final bool canUpdate =
                                   AccessControlService.canPerform(
                                     role,
-                                    AccessControlService.update,
+                                    AccessControlService.actionUpdate,
                                     isOwner: isOwner,
                                   );
                               final bool canDelete =
                                   AccessControlService.canPerform(
                                     role,
-                                    AccessControlService.delete,
+                                    AccessControlService.actionDelete,
                                     isOwner: isOwner,
                                   );
                               final Color accentColor = _categoryColor(
@@ -322,8 +389,35 @@ class _LogViewState extends State<LogView> {
                                       const SizedBox(height: 6),
                                       Text(log.description),
                                       const SizedBox(height: 6),
-                                      Row(
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 6,
                                         children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(99),
+                                              color: log.visibility == 'public' ? Colors.green.withValues(alpha: 0.16,)
+                                                  : Colors.blueGrey.withValues(
+                                                      alpha: 0.16,
+                                                    ),
+                                            ),
+                                            child: Icon(
+                                              log.visibility == 'public' ? Icons.public : Icons.lock,
+                                              size: 12,
+                                              color: log.visibility == 'public' ? Colors.green : Colors.blueGrey,
+                                            ),
+                                            
+                                          ),
+                                          // Icon(
+                                          //     log.visibility == 'public' ? Icons.public : Icons.lock,
+                                          //     size: 12,
+                                          //     color: log.visibility == 'public' ? Colors.green : Colors.blueGrey,
+                                          //   ),
                                           Container(
                                             padding: const EdgeInsets.symmetric(
                                               horizontal: 8,
@@ -356,6 +450,19 @@ class _LogViewState extends State<LogView> {
                                                 ),
                                               ],
                                             ),
+                                          ),
+                                          
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            _isSynced(log) ? Icons.cloud_outlined : Icons.cloud_off,
+                                            size: 12,
+                                            color: _isSynced(log)
+                                                      ? Colors.green.shade700
+                                                      : Colors.orange.shade700,
                                           ),
                                           const SizedBox(width: 10),
                                           Icon(
@@ -431,7 +538,10 @@ class _LogViewState extends State<LogView> {
         ),
       ),
       floatingActionButton:
-          AccessControlService.canPerform(role, AccessControlService.create)
+          AccessControlService.canPerform(
+            role,
+            AccessControlService.actionCreate,
+          )
           ? FloatingActionButton(
               onPressed: () {
                 _openEditor();

@@ -71,23 +71,24 @@ class MongoService {
     }
   }
 
-  Future<List<LogModel>> getLogs() async {
+  Future<List<LogModel>> getLogs(String teamId) async {
     await LogHelper.writeLog(
-      'Fetching logs from MongoDB',
+      'Fetching logs from MongoDB for teamId "$teamId"',
       source: _source,
       level: 3,
     );
 
     try {
       await _ensureConnected();
+      final SelectorBuilder selector = where.eq('teamId', teamId);
 
-      final List<Map<String, dynamic>> documents = (await _collection!
-              .find()
-              .toList())
-          .map(
-            (dynamic document) => Map<String, dynamic>.from(document as Map),
-          )
-          .toList();
+      final List<Map<String, dynamic>> documents =
+          (await _collection!.find(selector).toList())
+              .map(
+                (dynamic document) =>
+                    Map<String, dynamic>.from(document as Map),
+              )
+              .toList();
 
       final List<LogModel> logs = documents
           .map((Map<String, dynamic> map) => LogModel.fromMap(map))
@@ -104,7 +105,7 @@ class MongoService {
       });
 
       await LogHelper.writeLog(
-        'Fetched ${logs.length} logs from MongoDB',
+        'Fetched ${logs.length} logs from MongoDB for teamId "$teamId"',
         source: _source,
         level: 2,
       );
@@ -120,7 +121,7 @@ class MongoService {
     }
   }
 
-  Future<void> insertLog(LogModel log) async {
+  Future<String?> insertLog(LogModel log) async {
     await LogHelper.writeLog(
       'Inserting log with title "${log.title}"',
       source: _source,
@@ -129,16 +130,87 @@ class MongoService {
 
     try {
       await _ensureConnected();
-      await _collection!.insertOne(log.toMap());
+      final WriteResult result = await _collection!.insertOne(log.toMap());
+      final dynamic insertedId = result.id;
+      final String? normalizedId = insertedId is ObjectId
+          ? insertedId.oid
+          : insertedId?.toString();
 
       await LogHelper.writeLog(
-        'Log inserted successfully',
+        'Log inserted successfully with id "$normalizedId"',
+        source: _source,
+        level: 2,
+      );
+      return normalizedId;
+    } catch (error) {
+      await LogHelper.writeLog(
+        'insertLog() failed: $error',
+        source: _source,
+        level: 1,
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> updateLog(LogModel log) async {
+    await LogHelper.writeLog(
+      'Updating log with id "${log.id}"',
+      source: _source,
+      level: 3,
+    );
+
+    if (log.id == null || log.id!.trim().isEmpty) {
+      throw ArgumentError('Cannot update log without a cloud id');
+    }
+
+    try {
+      await _ensureConnected();
+      final ObjectId cloudId = ObjectId.fromHexString(log.id!.trim());
+      final SelectorBuilder selector = where
+          .eq('_id', cloudId)
+          .eq('teamId', log.teamId);
+
+      await _collection!.replaceOne(selector, log.toMap(), upsert: true);
+
+      await LogHelper.writeLog(
+        'Log updated successfully',
         source: _source,
         level: 2,
       );
     } catch (error) {
       await LogHelper.writeLog(
-        'insertLog() failed: $error',
+        'updateLog() failed: $error',
+        source: _source,
+        level: 1,
+      );
+      rethrow;
+    }
+  }
+
+  Future<void> deleteLog(String id, {String? teamId}) async {
+    await LogHelper.writeLog(
+      'Deleting log with id "$id"',
+      source: _source,
+      level: 3,
+    );
+
+    try {
+      await _ensureConnected();
+      final ObjectId cloudId = ObjectId.fromHexString(id.trim());
+      SelectorBuilder selector = where.eq('_id', cloudId);
+      if (teamId != null && teamId.trim().isNotEmpty) {
+        selector = selector.eq('teamId', teamId.trim());
+      }
+
+      await _collection!.deleteOne(selector);
+      await LogHelper.writeLog(
+        'Log deleted successfully',
+        source: _source,
+        level: 2,
+      );
+    } catch (error) {
+      await LogHelper.writeLog(
+        'deleteLog() failed: $error',
         source: _source,
         level: 1,
       );

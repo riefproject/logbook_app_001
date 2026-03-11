@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 import 'log_controller.dart';
 import 'models/log_model.dart';
@@ -27,10 +28,12 @@ class _LogEditorPageState extends State<LogEditorPage> {
     'Proyek',
     'Pribadi',
   ];
+  static const List<String> _visibilityOptions = <String>['private', 'public'];
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   late String _selectedCategory;
+  late String _selectedVisibility;
 
   bool get _isEditMode => widget.log != null && widget.index != null;
 
@@ -39,14 +42,27 @@ class _LogEditorPageState extends State<LogEditorPage> {
     super.initState();
     _titleController.text = widget.log?.title ?? '';
     _descriptionController.text = widget.log?.description ?? '';
+    _descriptionController.addListener(_onDescriptionChanged);
     _selectedCategory = widget.log?.category ?? _categories.first;
     if (!_categories.contains(_selectedCategory)) {
       _selectedCategory = _categories.first;
     }
+    _selectedVisibility = widget.log?.visibility ?? _visibilityOptions.first;
+    if (!_visibilityOptions.contains(_selectedVisibility)) {
+      _selectedVisibility = _visibilityOptions.first;
+    }
+  }
+
+  void _onDescriptionChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _descriptionController.removeListener(_onDescriptionChanged);
     _titleController.dispose();
     _descriptionController.dispose();
     super.dispose();
@@ -67,64 +83,27 @@ class _LogEditorPageState extends State<LogEditorPage> {
     }
 
     if (_isEditMode) {
-      _callUpdateLog(
-        index: widget.index!,
-        title: title,
-        description: description,
-        category: _selectedCategory,
+      widget.controller.updateLog(
+        widget.index!,
+        title,
+        description,
+        _selectedCategory,
         authorId: authorId,
         teamId: teamId,
+        visibility: _selectedVisibility,
       );
     } else {
-      _callAddLog(
-        title: title,
-        description: description,
-        category: _selectedCategory,
+      widget.controller.addLog(
+        title,
+        description,
+        _selectedCategory,
         authorId: authorId,
         teamId: teamId,
+        visibility: _selectedVisibility,
       );
     }
 
     Navigator.pop(context);
-  }
-
-  void _callAddLog({
-    required String title,
-    required String description,
-    required String category,
-    required String authorId,
-    required String teamId,
-  }) {
-    try {
-      Function.apply(
-        widget.controller.addLog as Function,
-        <dynamic>[title, description, category],
-        <Symbol, dynamic>{#authorId: authorId, #teamId: teamId},
-      );
-      return;
-    } on NoSuchMethodError {
-      widget.controller.addLog(title, description, category);
-    }
-  }
-
-  void _callUpdateLog({
-    required int index,
-    required String title,
-    required String description,
-    required String category,
-    required String authorId,
-    required String teamId,
-  }) {
-    try {
-      Function.apply(
-        widget.controller.updateLog as Function,
-        <dynamic>[index, title, description, category],
-        <Symbol, dynamic>{#authorId: authorId, #teamId: teamId},
-      );
-      return;
-    } on NoSuchMethodError {
-      widget.controller.updateLog(index, title, description, category);
-    }
   }
 
   @override
@@ -194,11 +173,37 @@ class _LogEditorPageState extends State<LogEditorPage> {
                       });
                     },
                   ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _selectedVisibility,
+                    decoration: const InputDecoration(
+                      labelText: 'Visibilitas',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: _visibilityOptions.map((String visibility) {
+                      final String label = visibility == 'public'
+                          ? 'Public (tim dapat melihat)'
+                          : 'Private (hanya Anda)';
+                      return DropdownMenuItem<String>(
+                        value: visibility,
+                        child: Text(label),
+                      );
+                    }).toList(),
+                    onChanged: (String? value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _selectedVisibility = value;
+                      });
+                    },
+                  ),
                 ],
               ),
             ),
-            const Center(
-              child: Text('Pratinjau akan hadir di iterasi berikutnya.'),
+            SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: MarkdownBody(data: _descriptionController.text),
             ),
           ],
         ),

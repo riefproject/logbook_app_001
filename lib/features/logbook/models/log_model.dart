@@ -13,6 +13,8 @@ class LogModel {
     required this.category,
     this.authorId = 'unknown',
     this.teamId = 'unknown',
+    this.visibility = 'private',
+    this.needsSync = false,
   });
 
   factory LogModel.fromMap(Map<String, dynamic> map) {
@@ -27,6 +29,8 @@ class LogModel {
       category: (map['category'] ?? 'Pribadi').toString(),
       authorId: (map['authorId'] ?? 'unknown').toString(),
       teamId: (map['teamId'] ?? 'unknown').toString(),
+      visibility: (map['visibility'] ?? 'private').toString(),
+      needsSync: false,
     );
   }
 
@@ -69,6 +73,10 @@ class LogModel {
   final String authorId;
   @HiveField(6)
   final String teamId;
+  @HiveField(7, defaultValue: 'private')
+  final String visibility;
+  @HiveField(8, defaultValue: false)
+  final bool needsSync;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -79,6 +87,7 @@ class LogModel {
       'category': category,
       'authorId': authorId,
       'teamId': teamId,
+      'visibility': visibility,
     };
   }
 }

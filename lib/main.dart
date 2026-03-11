@@ -11,6 +11,7 @@ Future<void> main() async {
   await Hive.initFlutter();
   Hive.registerAdapter(LogModelAdapter());
   await Hive.openBox<LogModel>('offline_logs');
+  await Hive.openBox<dynamic>('sync_queue');
   runApp(const MyApp());
 }
 
