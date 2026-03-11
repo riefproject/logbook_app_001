@@ -26,7 +26,7 @@ class LogModel {
       description: (map['description'] ?? '').toString(),
       timestamp: (map['timestamp'] ?? DateTime.now().toIso8601String())
           .toString(),
-      category: (map['category'] ?? 'Pribadi').toString(),
+      category: (map['category'] ?? 'Software').toString(),
       authorId: (map['authorId'] ?? 'unknown').toString(),
       teamId: (map['teamId'] ?? 'unknown').toString(),
       visibility: (map['visibility'] ?? 'private').toString(),

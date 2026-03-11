@@ -24,9 +24,9 @@ class LogEditorPage extends StatefulWidget {
 
 class _LogEditorPageState extends State<LogEditorPage> {
   static const List<String> _categories = <String>[
-    'Akademik',
-    'Proyek',
-    'Pribadi',
+    'Mechanical',
+    'Electronic',
+    'Software',
   ];
   static const List<String> _visibilityOptions = <String>['private', 'public'];
 
