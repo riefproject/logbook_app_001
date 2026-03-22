@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
@@ -43,15 +44,25 @@ class MongoService {
       throw Exception('MONGODB_URI is not set in .env');
     }
 
+    final String maskedUri = uri.contains('@') 
+        ? '${uri.substring(0, uri.indexOf("@") + 1)}***' 
+        : uri;
+
     await LogHelper.writeLog(
-      'Opening MongoDB connection',
+      'Opening MongoDB connection to: $maskedUri',
       source: _source,
       level: 2,
     );
 
     try {
       final Db db = Db(uri);
-      await db.open();
+      await db.open().timeout(const Duration(seconds: 15), onTimeout: () {
+        throw TimeoutException('MongoDB connection timed out');
+      });
+
+      if (!db.isConnected) {
+        throw Exception('Database opened but not connected');
+      }
 
       _db = db;
       _collection = db.collection('logs');
@@ -166,9 +177,7 @@ class MongoService {
     try {
       await _ensureConnected();
       final ObjectId cloudId = ObjectId.fromHexString(log.id!.trim());
-      final SelectorBuilder selector = where
-          .eq('_id', cloudId)
-          .eq('teamId', log.teamId);
+      final SelectorBuilder selector = where.eq('_id', cloudId);
 
       await _collection!.replaceOne(selector, log.toMap(), upsert: true);
 
