@@ -1,24 +1,25 @@
-import 'dart:async';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:mongo_dart/mongo_dart.dart' show ObjectId;
 
 import '../../services/access_control_service.dart';
+import '../../services/offline_sync_service.dart';
 import 'log_repository.dart';
 import 'models/log_model.dart';
 
 class LogController {
   LogController() {
-    _initConnectivity();
+    _initGlobalSyncListeners();
   }
 
   final LogRepository _repository = LogRepository();
-  
+  final OfflineSyncService _offlineSync = OfflineSyncService.instance;
+
   final ValueNotifier<List<LogModel>> logsNotifier = ValueNotifier([]);
   final ValueNotifier<List<LogModel>> filteredLogs = ValueNotifier([]);
   final ValueNotifier<bool> isOnlineNotifier = ValueNotifier(false);
 
-  StreamSubscription? _connectivitySub;
+  int _lastSyncEpoch = 0;
+
   String _currentUserId = 'unknown';
   String _currentUserRole = 'Anggota';
   String _activeTeamId = 'unknown';
@@ -39,7 +40,7 @@ class LogController {
 
   void refreshLogs() {
     final allLogs = _repository.getLocalLogs(_activeTeamId);
-    
+
     final visibleLogs = allLogs.where((log) {
       return AccessControlService.canReadLog(
         _currentUserRole,
@@ -71,19 +72,22 @@ class LogController {
 
     filteredLogs.value = logsNotifier.value.where((log) {
       return log.title.toLowerCase().contains(_searchQuery) ||
-             log.description.toLowerCase().contains(_searchQuery) ||
-             log.category.toLowerCase().contains(_searchQuery);
+          log.description.toLowerCase().contains(_searchQuery) ||
+          log.category.toLowerCase().contains(_searchQuery);
     }).toList();
   }
 
   int indexOfLog(LogModel log) => logsNotifier.value.indexOf(log);
 
-  bool isValidInput(String title, String desc) => 
+  bool isValidInput(String title, String desc) =>
       title.trim().isNotEmpty && desc.trim().isNotEmpty;
 
   // --- CRUD Actions ---
 
-  Future<void> addLog(String title, String desc, String category, {
+  Future<void> addLog(
+    String title,
+    String desc,
+    String category, {
     String authorId = 'unknown',
     String teamId = 'unknown',
     String visibility = 'private',
@@ -105,7 +109,11 @@ class LogController {
     refreshLogs();
   }
 
-  Future<void> updateLog(int index, String title, String desc, String category, {
+  Future<void> updateLog(
+    int index,
+    String title,
+    String desc,
+    String category, {
     required String authorId,
     required String teamId,
     required String visibility,
@@ -125,7 +133,7 @@ class LogController {
     );
 
     print('DEBUG: LogController.updateLog called for ${updated.id}');
-    await _repository.saveLog(updated); 
+    await _repository.saveLog(updated);
     refreshLogs();
   }
 
@@ -135,25 +143,28 @@ class LogController {
     refreshLogs();
   }
 
-  // --- Connectivity ---
+  void _initGlobalSyncListeners() {
+    isOnlineNotifier.value = _offlineSync.isOnline.value;
+    _offlineSync.isOnline.addListener(_handleGlobalOnlineChanged);
 
-  void _initConnectivity() async {
-    final results = await _repository.checkConnectivity();
-    isOnlineNotifier.value = !results.contains(ConnectivityResult.none);
+    _lastSyncEpoch = _offlineSync.syncEpoch.value;
+    _offlineSync.syncEpoch.addListener(_handleGlobalSyncEpochChanged);
+  }
 
-    _connectivitySub = _repository.onConnectivityChanged.listen((results) {
-      final online = !results.contains(ConnectivityResult.none);
-      if (isOnlineNotifier.value != online) {
-        isOnlineNotifier.value = online;
-        if (online) {
-          _repository.syncPendingOperations().then((_) => refreshLogs());
-        }
-      }
-    });
+  void _handleGlobalOnlineChanged() {
+    isOnlineNotifier.value = _offlineSync.isOnline.value;
+  }
+
+  void _handleGlobalSyncEpochChanged() {
+    final int epoch = _offlineSync.syncEpoch.value;
+    if (epoch == _lastSyncEpoch) return;
+    _lastSyncEpoch = epoch;
+    refreshLogs();
   }
 
   void dispose() {
-    _connectivitySub?.cancel();
+    _offlineSync.isOnline.removeListener(_handleGlobalOnlineChanged);
+    _offlineSync.syncEpoch.removeListener(_handleGlobalSyncEpochChanged);
     logsNotifier.dispose();
     filteredLogs.dispose();
     isOnlineNotifier.dispose();

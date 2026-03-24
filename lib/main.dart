@@ -4,6 +4,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 import 'features/logbook/models/log_model.dart';
 import 'features/onboarding/onboarding_view.dart';
+import 'services/offline_sync_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +13,7 @@ Future<void> main() async {
   Hive.registerAdapter(LogModelAdapter());
   await Hive.openBox<LogModel>('offline_logs');
   await Hive.openBox<dynamic>('sync_queue');
+  OfflineSyncService.instance.start();
   runApp(const MyApp());
 }
 
