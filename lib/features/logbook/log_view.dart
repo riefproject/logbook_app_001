@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 
 import '../onboarding/onboarding_view.dart';
 import 'log_controller.dart';
@@ -40,7 +41,7 @@ class _LogViewState extends State<LogView> {
       userRole: _currentUser['role'],
       teamId: _currentUser['teamId'],
     );
-    _controller.loadLogs(_currentUser['teamId']);
+    unawaited(_controller.loadLogs(_currentUser['teamId']));
   }
 
   @override
@@ -147,10 +148,7 @@ class _LogViewState extends State<LogView> {
           ),
         ),
       ),
-      floatingActionButton: AddLogFAB(
-        role: role,
-        onOpenEditor: _openEditor,
-      ),
+      floatingActionButton: AddLogFAB(role: role, onOpenEditor: _openEditor),
     );
   }
 }

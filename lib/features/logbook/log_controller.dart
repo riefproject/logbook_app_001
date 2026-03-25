@@ -53,10 +53,11 @@ class LogController {
     _applyFilter();
   }
 
-  void loadLogs(String teamId) {
+  Future<void> loadLogs(String teamId) async {
     _activeTeamId = teamId;
     refreshLogs();
-    _repository.pullCloudLogs(teamId).then((_) => refreshLogs());
+    await _repository.pullCloudLogs(teamId, reconcileDeletes: true);
+    refreshLogs();
   }
 
   void searchLog(String query) {
@@ -92,6 +93,10 @@ class LogController {
     String teamId = 'unknown',
     String visibility = 'private',
   }) async {
+    final String normalizedVisibility =
+        (_currentUserRole == 'Asisten' || _currentUserRole == 'Anggota')
+        ? 'private'
+        : visibility;
     final log = LogModel(
       id: ObjectId().oid,
       title: title.trim(),
@@ -100,7 +105,7 @@ class LogController {
       category: category,
       authorId: authorId,
       teamId: teamId == 'unknown' ? _activeTeamId : teamId,
-      visibility: visibility,
+      visibility: normalizedVisibility,
       needsSync: true,
     );
 
@@ -119,6 +124,10 @@ class LogController {
     required String visibility,
   }) async {
     final oldLog = filteredLogs.value[index];
+    final String normalizedVisibility =
+        (_currentUserRole == 'Asisten' || _currentUserRole == 'Anggota')
+        ? oldLog.visibility
+        : visibility;
 
     final updated = LogModel(
       id: oldLog.id,
@@ -128,7 +137,7 @@ class LogController {
       category: category,
       authorId: oldLog.authorId,
       teamId: oldLog.teamId,
-      visibility: visibility,
+      visibility: normalizedVisibility,
       needsSync: true,
     );
 

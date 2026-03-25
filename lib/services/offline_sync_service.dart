@@ -1,32 +1,47 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../features/logbook/log_repository.dart';
 import '../helpers/log_helper.dart';
 
-class OfflineSyncService {
+class OfflineSyncService with WidgetsBindingObserver {
   OfflineSyncService._internal();
 
   static final OfflineSyncService instance = OfflineSyncService._internal();
   static const String _source = 'offline_sync_service.dart';
+  static const Duration _pullInterval = Duration(seconds: 30);
 
   final ValueNotifier<bool> isOnline = ValueNotifier<bool>(false);
   final ValueNotifier<int> syncEpoch = ValueNotifier<int>(0);
 
   LogRepository? _repository;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  Timer? _pullTimer;
 
   bool _started = false;
-  bool _syncInProgress = false;
+  bool _maintenanceInProgress = false;
+  bool _appInForeground = true;
 
   void start() {
     if (_started) return;
     _started = true;
 
+    WidgetsBinding.instance.addObserver(this);
     _repository = LogRepository();
     unawaited(_initSafely());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appInForeground = state == AppLifecycleState.resumed;
+    if (_appInForeground && isOnline.value) {
+      _ensurePullTimer();
+      unawaited(_runMaintenance(pushPending: false, pullReconcile: true));
+    } else {
+      _stopPullTimer();
+    }
   }
 
   Future<void> _initSafely() async {
@@ -61,38 +76,69 @@ class OfflineSyncService {
       isOnline.value = online;
     }
 
+    if (online && _appInForeground) {
+      _ensurePullTimer();
+    } else {
+      _stopPullTimer();
+    }
+
+    // Saat offline -> online: push pending dulu, lalu reconcile pull (biar delete di cloud ikut tercermin).
     if (!wasOnline && online) {
-      unawaited(_syncAllPending());
+      unawaited(_runMaintenance(pushPending: true, pullReconcile: true));
     }
   }
 
-  Future<void> _syncAllPending() async {
-    if (_syncInProgress) return;
-    _syncInProgress = true;
+  void _ensurePullTimer() {
+    _pullTimer ??= Timer.periodic(_pullInterval, (_) {
+      unawaited(_runMaintenance(pushPending: false, pullReconcile: true));
+    });
+  }
+
+  void _stopPullTimer() {
+    _pullTimer?.cancel();
+    _pullTimer = null;
+  }
+
+  Future<void> _runMaintenance({
+    required bool pushPending,
+    required bool pullReconcile,
+  }) async {
+    if (_maintenanceInProgress) return;
+    _maintenanceInProgress = true;
 
     try {
-      await LogHelper.writeLog(
-        'Memulai sinkronisasi offline...',
-        source: _source,
-        level: 2,
-      );
+      if (pushPending) {
+        await LogHelper.writeLog(
+          'Memulai sinkronisasi offline...',
+          source: _source,
+          level: 2,
+        );
+        await _repository!.syncPendingOperations();
+      }
 
-      await _repository!.syncPendingOperations();
-      syncEpoch.value = syncEpoch.value + 1;
+      if (pullReconcile) {
+        await _repository!.reconcileCloudForAllLocalTeams();
+      }
+
+      if (pushPending || pullReconcile) {
+        syncEpoch.value = syncEpoch.value + 1;
+      }
     } catch (error) {
       await LogHelper.writeLog(
-        'Sync global gagal: $error',
+        'Maintenance global gagal: $error',
         source: _source,
         level: 1,
       );
     } finally {
-      _syncInProgress = false;
+      _maintenanceInProgress = false;
     }
   }
 
   Future<void> dispose() async {
+    WidgetsBinding.instance.removeObserver(this);
     await _connectivitySub?.cancel();
     _connectivitySub = null;
+    _stopPullTimer();
     _repository = null;
     _started = false;
   }

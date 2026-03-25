@@ -37,6 +37,20 @@ class _LogEditorPageState extends State<LogEditorPage> {
 
   bool get _isEditMode => widget.log != null && widget.index != null;
 
+  String get _currentRole =>
+      (widget.currentUser['role'] ?? 'Anggota').toString().trim();
+
+  List<String> _allowedVisibilityOptions() {
+    if (_currentRole == 'Asisten' || _currentRole == 'Anggota') {
+      if (_isEditMode) {
+        final String existing = widget.log?.visibility ?? 'private';
+        return <String>[existing];
+      }
+      return const <String>['private'];
+    }
+    return _visibilityOptions;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -48,8 +62,9 @@ class _LogEditorPageState extends State<LogEditorPage> {
       _selectedCategory = _categories.first;
     }
     _selectedVisibility = widget.log?.visibility ?? _visibilityOptions.first;
-    if (!_visibilityOptions.contains(_selectedVisibility)) {
-      _selectedVisibility = _visibilityOptions.first;
+    final List<String> allowed = _allowedVisibilityOptions();
+    if (!allowed.contains(_selectedVisibility)) {
+      _selectedVisibility = allowed.first;
     }
   }
 
@@ -74,6 +89,11 @@ class _LogEditorPageState extends State<LogEditorPage> {
     final String authorId = (widget.currentUser['uid'] ?? 'unknown').toString();
     final String teamId = (widget.currentUser['teamId'] ?? 'unknown')
         .toString();
+    final bool lockVisibility =
+        _currentRole == 'Asisten' || _currentRole == 'Anggota';
+    final String visibilityToSave = lockVisibility
+        ? _allowedVisibilityOptions().first
+        : _selectedVisibility;
 
     if (!widget.controller.isValidInput(title, description)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -90,7 +110,7 @@ class _LogEditorPageState extends State<LogEditorPage> {
         _selectedCategory,
         authorId: authorId,
         teamId: teamId,
-        visibility: _selectedVisibility,
+        visibility: visibilityToSave,
       );
     } else {
       widget.controller.addLog(
@@ -99,7 +119,7 @@ class _LogEditorPageState extends State<LogEditorPage> {
         _selectedCategory,
         authorId: authorId,
         teamId: teamId,
-        visibility: _selectedVisibility,
+        visibility: visibilityToSave,
       );
     }
 
@@ -180,7 +200,7 @@ class _LogEditorPageState extends State<LogEditorPage> {
                       labelText: 'Visibilitas',
                       border: OutlineInputBorder(),
                     ),
-                    items: _visibilityOptions.map((String visibility) {
+                    items: _allowedVisibilityOptions().map((String visibility) {
                       final String label = visibility == 'public'
                           ? 'Public (tim dapat melihat)'
                           : 'Private (hanya Anda)';
@@ -189,14 +209,16 @@ class _LogEditorPageState extends State<LogEditorPage> {
                         child: Text(label),
                       );
                     }).toList(),
-                    onChanged: (String? value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _selectedVisibility = value;
-                      });
-                    },
+                    onChanged: _allowedVisibilityOptions().length <= 1
+                        ? null
+                        : (String? value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              _selectedVisibility = value;
+                            });
+                          },
                   ),
                 ],
               ),

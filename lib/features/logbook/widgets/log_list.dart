@@ -37,7 +37,7 @@ class LogList extends StatelessWidget {
         }
 
         return RefreshIndicator(
-          onRefresh: () async => controller.loadLogs(teamId),
+          onRefresh: () => controller.loadLogs(teamId),
           child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(),
             itemCount: logs.length,

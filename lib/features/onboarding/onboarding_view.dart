@@ -13,18 +13,22 @@ class _OnboardingViewState extends State<OnboardingView> {
   int step = 1;
   static const int _totalSteps = 3;
 
-  final List<IconData> _icons = [Icons.edit_note, Icons.history, Icons.lock];
+  final List<IconData> _icons = [
+    Icons.edit_note,
+    Icons.cloud_sync_outlined,
+    Icons.visibility_outlined,
+  ];
 
   final List<String> _titles = [
     'Catat Aktivitas Harian',
-    'Lihat Riwayat Counter',
-    'Login Aman dan Cepat',
+    'Sinkronisasi Otomatis',
+    'Atur Privasi Catatan',
   ];
 
   final List<String> _descriptions = [
-    'Gunakan counter untuk mencatat progres logbook dengan rapi.',
-    'Semua perubahan tersimpan di history agar mudah ditelusuri.',
-    'Masuk dengan akun yang tersedia sebelum mulai mencatat.',
+    'Buat catatan logbook dengan rapi untuk setiap aktivitas.',
+    'Tetap bisa mencatat saat offline, lalu tersinkron ke cloud saat online.',
+    'Pilih private untuk catatan pribadi atau public untuk tim (sesuai akses).',
   ];
 
   void _onNext() {
