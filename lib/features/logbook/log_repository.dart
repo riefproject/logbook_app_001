@@ -2,14 +2,25 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive/hive.dart';
 import 'models/log_model.dart';
+import 'log_repository_dependencies.dart';
 import '../../services/mongo_service.dart';
 import '../../helpers/log_helper.dart';
 
 class LogRepository {
-  final Box<LogModel> _myBox = Hive.box<LogModel>('offline_logs');
-  final Box<dynamic> _syncQueue = Hive.box<dynamic>('sync_queue');
-  final MongoService _mongoService = MongoService();
-  final Connectivity _connectivity = Connectivity();
+  LogRepository({
+    Box<LogModel>? offlineLogsBox,
+    Box<dynamic>? syncQueueBox,
+    CloudLogService? mongoService,
+    ConnectivityService? connectivityService,
+  }) : _myBox = offlineLogsBox ?? Hive.box<LogModel>('offline_logs'),
+       _syncQueue = syncQueueBox ?? Hive.box<dynamic>('sync_queue'),
+       _mongoService = mongoService ?? MongoService(),
+       _connectivity = connectivityService ?? ConnectivityAdapter();
+
+  final Box<LogModel> _myBox;
+  final Box<dynamic> _syncQueue;
+  final CloudLogService _mongoService;
+  final ConnectivityService _connectivity;
 
   static final RegExp _objectIdPattern = RegExp(r'^[a-fA-F0-9]{24}$');
   static const String _source = 'log_repository.dart';

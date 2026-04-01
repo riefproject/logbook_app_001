@@ -109,7 +109,7 @@ class LogController {
       needsSync: true,
     );
 
-    print('DEBUG: LogController.addLog called for ${log.title}');
+    // print('DEBUG: LogController.addLog called for ${log.title}');
     await _repository.saveLog(log);
     refreshLogs();
   }
@@ -141,7 +141,7 @@ class LogController {
       needsSync: true,
     );
 
-    print('DEBUG: LogController.updateLog called for ${updated.id}');
+    // print('DEBUG: LogController.updateLog called for ${updated.id}');
     await _repository.saveLog(updated);
     refreshLogs();
   }
