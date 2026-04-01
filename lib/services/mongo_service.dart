@@ -3,9 +3,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
 import '../features/logbook/models/log_model.dart';
+import '../features/logbook/log_repository_dependencies.dart';
 import '../helpers/log_helper.dart';
 
-class MongoService {
+class MongoService implements CloudLogService {
   MongoService._internal();
 
   static final MongoService _instance = MongoService._internal();
@@ -82,6 +83,7 @@ class MongoService {
     }
   }
 
+  @override
   Future<List<LogModel>> getLogs(String teamId) async {
     await LogHelper.writeLog(
       'Fetching logs from MongoDB for teamId "$teamId"',
@@ -132,6 +134,7 @@ class MongoService {
     }
   }
 
+  @override
   Future<String?> insertLog(LogModel log) async {
     await LogHelper.writeLog(
       'Inserting log with title "${log.title}"',
@@ -163,6 +166,7 @@ class MongoService {
     }
   }
 
+  @override
   Future<void> updateLog(LogModel log) async {
     await LogHelper.writeLog(
       'Updating log with id "${log.id}"',
@@ -196,6 +200,7 @@ class MongoService {
     }
   }
 
+  @override
   Future<void> deleteLog(String id, {String? teamId}) async {
     await LogHelper.writeLog(
       'Deleting log with id "$id"',
