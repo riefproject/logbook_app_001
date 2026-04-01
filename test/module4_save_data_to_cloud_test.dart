@@ -143,5 +143,42 @@ void main() {
 
       expect(hiveContext.offlineLogsBox.containsKey(removedId), isFalse);
     });
+
+    test('syncSingleLog should keep needsSync true when cloud update fails', () async {
+      const String cloudId = '507f1f77bcf86cd799439019';
+      cloudService.updateError = Exception('update gagal');
+      await hiveContext.offlineLogsBox.put(
+        cloudId,
+        buildLog(id: cloudId, needsSync: true, title: 'Perlu update'),
+      );
+
+      await repository.syncSingleLog(cloudId);
+
+      expect(hiveContext.offlineLogsBox.get(cloudId)?.needsSync, isTrue);
+      expect(cloudService.updatedLogs, isEmpty);
+    });
+
+    test('deleteLog should queue delete when online cloud deletion fails', () async {
+      const String cloudId = '507f1f77bcf86cd799439020';
+      cloudService.deleteError = Exception('delete gagal');
+      final log = buildLog(id: cloudId, needsSync: false);
+      await hiveContext.offlineLogsBox.put(cloudId, log);
+
+      await repository.deleteLog(log);
+
+      expect(hiveContext.syncQueueBox.length, 1);
+      expect(hiveContext.syncQueueBox.getAt(0)['id'], cloudId);
+    });
+
+    test('pullCloudLogs should do nothing when device is offline', () async {
+      connectivityService.setResults(<ConnectivityResult>[ConnectivityResult.none]);
+      cloudService.cloudLogs.add(
+        buildLog(id: '507f1f77bcf86cd799439021', needsSync: false),
+      );
+
+      await repository.pullCloudLogs('TIM_ARIEF');
+
+      expect(hiveContext.offlineLogsBox.isEmpty, isTrue);
+    });
   });
 }

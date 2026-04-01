@@ -91,5 +91,83 @@ void main() {
       expect(hiveContext.offlineLogsBox.containsKey('draft-sync'), isTrue);
       expect(hiveContext.offlineLogsBox.get('draft-sync')?.needsSync, isTrue);
     });
+
+    test('saveLog should overwrite existing local data when id is the same', () async {
+      await repository.saveLog(
+        buildLog(id: 'same-id', title: 'Versi Lama', description: 'Lama'),
+      );
+
+      await repository.saveLog(
+        buildLog(id: 'same-id', title: 'Versi Baru', description: 'Baru'),
+      );
+
+      final LogModel? actual = hiveContext.offlineLogsBox.get('same-id');
+
+      expect(actual?.title, 'Versi Baru');
+      expect(actual?.description, 'Baru');
+    });
+
+    test('getLocalLogs should return an empty list when no local data exists', () {
+      final List<LogModel> actual = repository.getLocalLogs('TIM_ARIEF');
+
+      expect(actual, isEmpty);
+    });
+
+    test('saveLog should preserve all important fields after reading from disk', () async {
+      final LogModel log = buildLog(
+        id: 'full-data',
+        title: 'Catatan Lengkap',
+        description: 'Deskripsi Lengkap',
+        category: 'Jaringan',
+        authorId: 'arief',
+        teamId: 'TIM_ARIEF',
+        visibility: 'team',
+      );
+
+      await repository.saveLog(log);
+
+      final LogModel? actual = hiveContext.offlineLogsBox.get('full-data');
+
+      expect(actual?.title, 'Catatan Lengkap');
+      expect(actual?.description, 'Deskripsi Lengkap');
+      expect(actual?.category, 'Jaringan');
+      expect(actual?.authorId, 'arief');
+      expect(actual?.teamId, 'TIM_ARIEF');
+      expect(actual?.visibility, 'team');
+    });
+
+    test('getLocalLogs should ignore data from other teams even when local box has many entries', () async {
+      await repository.saveLog(buildLog(id: 'a1', teamId: 'TIM_ARIEF'));
+      await repository.saveLog(buildLog(id: 'a2', teamId: 'TIM_ARIEF'));
+      await repository.saveLog(buildLog(id: 'b1', teamId: 'TIM_ORANG'));
+      await repository.saveLog(buildLog(id: 'b2', teamId: 'TIM_ORANG'));
+
+      final List<LogModel> actual = repository.getLocalLogs('TIM_ARIEF');
+
+      expect(actual.length, 2);
+      expect(actual.every((log) => log.teamId == 'TIM_ARIEF'), isTrue);
+    });
+
+    test('deleteLog should not fail when local key is already missing', () async {
+      final LogModel log = buildLog(id: 'missing-local');
+
+      await repository.deleteLog(log);
+
+      expect(hiveContext.offlineLogsBox.containsKey('missing-local'), isFalse);
+      expect(hiveContext.syncQueueBox.isEmpty, isTrue);
+    });
+
+    test('saveLog should keep invalid timestamp data unchanged in local storage', () async {
+      final LogModel log = buildLog(
+        id: 'invalid-time',
+        timestamp: 'bukan-format-tanggal',
+      );
+
+      await repository.saveLog(log);
+
+      final LogModel? actual = hiveContext.offlineLogsBox.get('invalid-time');
+
+      expect(actual?.timestamp, 'bukan-format-tanggal');
+    });
   });
 }
